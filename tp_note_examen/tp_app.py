@@ -4,11 +4,12 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import pickle
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split,GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import accuracy_score
 from sklearn.linear_model import LogisticRegression
+from sklearn.feature_selection import RFECV
 import numpy as np
 
 # Charger le jeu de données
@@ -241,16 +242,38 @@ def prepare_data():
 # Fonction pour l'entraînement du modèle
 def model_training(X_train, y_train, model_type='logistic_regression'):
     if model_type == 'logistic_regression':
-        model = LogisticRegression(max_iter=1000)  
+        model = LogisticRegression(max_iter=1000)
+        param_grid = {
+            'C': [0.01, 0.1, 1, 10, 100],
+            'penalty': ['l2'],
+            'solver': ['lbfgs', 'liblinear']
+        }
     else:
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        model = RandomForestClassifier(random_state=42)
+        param_grid = {
+            'n_estimators': [50, 100, 200],
+            'max_depth': [None, 10, 20, 30],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 4]
+        }
 
-    model.fit(X_train, y_train)
+    grid_search = GridSearchCV(estimator=model,
+                               param_grid=param_grid,
+                               cv=3,             
+                               scoring='roc_auc',
+                               n_jobs=-1,       
+                               verbose=1)
+    grid_search.fit(X_train, y_train)
+    
+    best_model = grid_search.best_estimator_
+    
+    print(f"Meilleurs paramètres : {grid_search.best_params_}")
+    print(f"Meilleur score CV : {grid_search.best_score_:.4f}")
 
     with open(f'{model_type}_model.pkl', 'wb') as file:
-        pickle.dump(model, file)
+        pickle.dump(best_model, file)
 
-    return model
+    return best_model
 
 ##############################################
         
